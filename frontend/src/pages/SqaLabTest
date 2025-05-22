@@ -1,0 +1,250 @@
+
+import org.junit.*;
+import org.openqa.selenium.*;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import java.time.Duration;
+
+public class SqaLabTest {
+    static WebDriver driver;
+
+    @BeforeClass
+    public static void setUpClass() {
+        System.setProperty("webdriver.chrome.driver", "/usr/bin/chromedriver");
+        driver = new ChromeDriver();
+    }
+
+    @AfterClass
+    public static void tearDownClass() {
+        // Uncomment to close browser after all tests
+        // if (driver != null) driver.quit();
+    }
+
+    @Test
+    public void testRegisterSuccess() {
+        driver.get("http://localhost:5173/register");
+        sleep(1500);
+        driver.findElement(By.name("username")).sendKeys("testuser" + System.currentTimeMillis());
+        sleep(500);
+        driver.findElement(By.name("email")).sendKeys("test" + System.currentTimeMillis() + "@example.com");
+        sleep(500);
+        driver.findElement(By.name("password")).sendKeys("password123");
+        sleep(500);
+        driver.findElement(By.cssSelector("button[type='submit']")).click();
+        sleep(2000);
+
+        // Handle alert if present
+        try {
+            Alert alert = driver.switchTo().alert();
+            alert.accept();
+            sleep(1000);
+        } catch (NoAlertPresentException e) {}
+
+        Assert.assertTrue(
+            "User should be redirected to /login after successful registration",
+            driver.getCurrentUrl().contains("/login")
+        );
+    }
+
+    @Test
+    public void testRegisterMissingFields() {
+        driver.get("http://localhost:5173/register");
+        sleep(1500);
+        driver.findElement(By.name("email")).sendKeys("missinguser@example.com");
+        sleep(500);
+        driver.findElement(By.name("password")).sendKeys("password123");
+        sleep(500);
+        driver.findElement(By.cssSelector("button[type='submit']")).click();
+        sleep(1500);
+        Assert.assertTrue(
+            "User should remain on /register page when required fields are missing",
+            driver.getCurrentUrl().contains("/register")
+        );
+    }
+
+    @Test
+    public void testRegisterDuplicateEmail() {
+        driver.get("http://localhost:5173/register");
+        sleep(1500);
+        driver.findElement(By.name("username")).sendKeys("existinguser");
+        sleep(500);
+        driver.findElement(By.name("email")).sendKeys("user@example.com");
+        sleep(500);
+        driver.findElement(By.name("password")).sendKeys("password123");
+        sleep(500);
+        driver.findElement(By.cssSelector("button[type='submit']")).click();
+        sleep(2000);
+        String pageSource = driver.getPageSource().toLowerCase();
+        Assert.assertTrue(
+            "Error message should be displayed for duplicate email",
+            pageSource.contains("already") || pageSource.contains("error")
+        );
+    }
+
+    @Test
+    public void testLoginSuccess() {
+        driver.get("http://localhost:5173/login");
+        sleep(1500);
+        driver.findElement(By.name("email")).sendKeys("user@example.com");
+        sleep(500);
+        driver.findElement(By.name("password")).sendKeys("password123");
+        sleep(500);
+        driver.findElement(By.xpath("//button[@type='submit']")).click();
+        sleep(2000);
+        Assert.assertTrue(
+            "User should be redirected to /dashboard after login",
+            driver.getCurrentUrl().contains("/dashboard")
+        );
+    }
+
+    @Test
+    public void testLoginFailure() {
+        driver.get("http://localhost:5173/login");
+        sleep(1500);
+        driver.findElement(By.name("email")).sendKeys("wrong@example.com");
+        sleep(500);
+        driver.findElement(By.name("password")).sendKeys("wrongpass");
+        sleep(500);
+        driver.findElement(By.xpath("//button[@type='submit']")).click();
+        sleep(1500);
+        String pageSource = driver.getPageSource().toLowerCase();
+        Assert.assertTrue(
+            "Error message should be displayed for invalid login credentials",
+            pageSource.contains("login failed") || pageSource.contains("invalid") || pageSource.contains("error")
+        );
+    }
+
+    @Test
+    public void testLoginMissingFields() {
+        driver.get("http://localhost:5173/login");
+        sleep(1500);
+        driver.findElement(By.name("email")).sendKeys("user@example.com");
+        sleep(500);
+        driver.findElement(By.xpath("//button[@type='submit']")).click();
+        sleep(1000);
+        Assert.assertTrue(
+            "User should remain on /login page when required fields are missing",
+            driver.getCurrentUrl().contains("/login")
+        );
+    }
+
+    @Test
+    public void testDashboardSearchAndCartFlow() {
+        // Login as user
+        driver.get("http://localhost:5173/login");
+        sleep(1500);
+        driver.findElement(By.name("email")).sendKeys("user@example.com");
+        sleep(500);
+        driver.findElement(By.name("password")).sendKeys("password123");
+        sleep(500);
+        driver.findElement(By.xpath("//button[@type='submit']")).click();
+        sleep(2000);
+
+        driver.get("http://localhost:5173/dashboard");
+        sleep(1500);
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
+        WebElement searchInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("search")));
+        searchInput.sendKeys("Plough");
+        sleep(500);
+        searchInput.sendKeys(Keys.RETURN);
+        sleep(2000);
+
+        try {
+            WebElement firstRentBtn = driver.findElements(By.xpath("//button[contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'RENT NOW')]")).get(0);
+            firstRentBtn.click();
+            sleep(1000);
+
+            WebElement removeBtn = driver.findElements(By.cssSelector("button.text-red-500")).get(0);
+            removeBtn.click();
+            sleep(1000);
+        } catch (Exception e) {
+            Assert.fail("Search/Add/Remove Cart actions failed: " + e.getMessage());
+        }
+
+        // Admin add/edit product test can be called here if needed
+    }
+
+    @Test
+    public void testAdminAddAndEditProduct() {
+        driver.get("http://localhost:5173/login");
+        sleep(1500);
+        driver.findElement(By.name("email")).clear();
+        driver.findElement(By.name("email")).sendKeys("admin@gmail.com");
+        sleep(500);
+        driver.findElement(By.name("password")).clear();
+        driver.findElement(By.name("password")).sendKeys("asdf");
+        sleep(500);
+        driver.findElement(By.xpath("//button[@type='submit']")).click();
+        sleep(2000);
+
+        driver.get("http://localhost:5173/add-product");
+        sleep(1500);
+
+        String randomName = "selenium test " + System.currentTimeMillis();
+        String randomPrice = String.valueOf((int)(Math.random() * 1000) + 100);
+
+        WebElement nameInput = driver.findElement(By.xpath("//label[text()='Name']/following-sibling::div//input"));
+        nameInput.sendKeys(randomName);
+        sleep(500);
+
+        WebElement priceInput = driver.findElement(By.xpath("//label[text()='Daily Price']/following-sibling::div//input"));
+        priceInput.sendKeys(randomPrice);
+        sleep(500);
+
+        WebElement descInput = driver.findElement(By.xpath("//label[text()='Description']/following-sibling::div//input | //label[text()='Description']/following-sibling::div//textarea"));
+        descInput.sendKeys("selenium automated test update");
+        sleep(500);
+
+        WebElement uploadBtn = driver.findElement(By.xpath("//input[@type='file']"));
+        uploadBtn.sendKeys("/home/null/Music/trac.jpeg");
+        sleep(2000);
+
+        WebElement submitBtn = driver.findElement(By.cssSelector("button[type='submit']"));
+        ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", submitBtn);
+        sleep(500);
+        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", submitBtn);
+        sleep(3000);
+
+        driver.get("http://localhost:5173/dashboard");
+        sleep(2000);
+
+        try {
+            WebElement editBtn = driver.findElements(By.xpath("//button[contains(.,'Edit')]")).get(0);
+            editBtn.click();
+            sleep(1500);
+
+            String now = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
+            String newName = "Edited " + now;
+            String newPrice = String.valueOf((int)(Math.random() * 1000) + 100);
+            String newDesc = "Edited by Selenium at " + now;
+
+            WebElement nameEditInput = driver.findElement(By.xpath("//input[@name='name' or @label='Name' or @aria-label='Name'] | //label[text()='Name']/following-sibling::div//input"));
+            nameEditInput.clear();
+            nameEditInput.sendKeys(newName);
+            sleep(500);
+
+            WebElement priceEditInput = driver.findElement(By.xpath("//input[@name='price' or @label='Price' or @aria-label='Price'] | //label[text()='Price']/following-sibling::div//input"));
+            priceEditInput.clear();
+            priceEditInput.sendKeys(newPrice);
+            sleep(500);
+
+            WebElement descEditInput = driver.findElement(By.xpath("//textarea[@name='description' or @label='Description' or @aria-label='Description'] | //label[text()='Description']/following-sibling::div//textarea"));
+            descEditInput.clear();
+            descEditInput.sendKeys(newDesc);
+            sleep(500);
+
+            WebElement updateBtn = driver.findElement(By.cssSelector("button[type='submit']"));
+            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", updateBtn);
+            sleep(500);
+            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", updateBtn);
+            sleep(2000);
+        } catch (Exception e) {
+            Assert.fail("Admin Add/Edit Product actions failed: " + e.getMessage());
+        }
+    }
+
+    static void sleep(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException e) {}
+    }
+}

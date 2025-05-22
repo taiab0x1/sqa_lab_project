@@ -1,0 +1,34 @@
+.nav-link {
+  @apply text-gray-700 text-sm font-medium relative py-2;
+}
+
+.nav-link::after {
+  content: '';
+  @apply absolute bottom-0 left-0 w-0 h-0.5 bg-green-700 transition-all duration-300;
+}
+
+.nav-link:hover::after {
+  @apply w-full;
+}
+
+.nav-link:hover {
+  @apply text-green-700;
+}
+
+.auth-button {
+  @apply px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 
+  shadow-sm hover:shadow-md active:scale-95;
+}
+
+.login-button {
+  @apply bg-white text-green-700 border-2 border-green-700 
+  hover:bg-green-50 hover:border-green-800 hover:text-green-800;
+}
+
+.signup-button {
+  @apply bg-green-700 text-white hover:bg-green-800 
+  relative overflow-hidden hover:after:opacity-100
+  after:content-[''] after:absolute after:inset-0 
+  after:bg-gradient-to-r after:from-transparent after:via-white/20 after:to-transparent 
+  after:opacity-0 after:transition-opacity after:duration-300;
+}

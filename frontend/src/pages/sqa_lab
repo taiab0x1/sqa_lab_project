@@ -1,0 +1,365 @@
+package sqa_lab;
+
+import org.openqa.selenium.*;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import java.time.Duration;
+import java.io.*;
+
+public class Sqa_lab {
+    static WebDriver driver;
+
+    public static void main(String[] args) {
+        System.setProperty("webdriver.chrome.driver", "/usr/bin/chromedriver");
+        driver = new ChromeDriver();
+
+        // Initialize CSV with header
+        try (PrintWriter out = new PrintWriter(new FileWriter("/home/null/Documents/sqa_lab_project/selenium_results.csv"))) {
+            out.println("TestName,Status,Expected,Actual,Details");
+        } catch (IOException e) {
+            System.out.println("Error initializing CSV: " + e.getMessage());
+        }
+
+        try {
+            registerSuccess();
+            registerMissingFields();
+            registerDuplicateEmail();
+            loginSuccess();
+            loginFailure();
+            loginMissingFields();
+            dashboardSearchAndCartFlow();
+        } finally {
+            System.out.println("Testing finished. Browser left open for inspection.");
+        }
+    }
+
+    static synchronized void writeResult(String testName, String status, String expected, String actual) {
+        String details = "Expected: " + expected + " | Actual: " + actual;
+        // Print to console (IDE output)
+        System.out.println(testName + " - " + status + " - " + details);
+        // Write to CSV
+        try (FileWriter fw = new FileWriter("/home/null/Documents/sqa_lab_project/selenium_results.csv", true);
+             BufferedWriter bw = new BufferedWriter(fw);
+             PrintWriter out = new PrintWriter(bw)) {
+            out.println(String.format("%s,%s,%s,%s,%s", testName, status, expected.replace(",", ";"), actual.replace(",", ";"), details.replace(",", ";")));
+        } catch (IOException e) {
+            System.out.println("Error writing to CSV: " + e.getMessage());
+        }
+    }
+
+    static java.util.List<String[]> readCredentials(String csvPath) {
+        java.util.List<String[]> creds = new java.util.ArrayList<>();
+        try (BufferedReader br = new BufferedReader(new FileReader(csvPath))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                if (line.trim().isEmpty() || line.startsWith("email") || line.startsWith("username")) continue; // skip header/empty
+                creds.add(line.split(","));
+            }
+        } catch (IOException e) {
+            System.out.println("Error reading credentials CSV: " + e.getMessage());
+        }
+        return creds;
+    }
+
+    static void registerSuccess() {
+        String testName = "registerSuccess";
+        String expected = "User should be redirected to /login after successful registration";
+        java.util.List<String[]> creds = readCredentials("/home/null/Documents/sqa_lab_project/credentials.csv");
+        for (String[] cred : creds) {
+            try {
+                String username = cred[2];
+                String email = cred[0];
+                String password = cred[1];
+                driver.get("http://localhost:5173/register");
+                sleep(1500);
+                driver.findElement(By.name("username")).sendKeys(username);
+                sleep(500);
+                driver.findElement(By.name("email")).sendKeys(email);
+                sleep(500);
+                driver.findElement(By.name("password")).sendKeys(password);
+                sleep(500);
+                driver.findElement(By.cssSelector("button[type='submit']")).click();
+                sleep(2000);
+
+                // Handle alert if present
+                try {
+                    Alert alert = driver.switchTo().alert();
+                    alert.accept();
+                    sleep(1000);
+                } catch (NoAlertPresentException e) {}
+
+                boolean onLogin = driver.getCurrentUrl().contains("/login");
+                String actual = "Current URL: " + driver.getCurrentUrl();
+                writeResult(testName + "_" + email, onLogin ? "PASS" : "FAIL", expected, actual);
+            } catch (Exception e) {
+                String actual = "Exception: " + e.getClass().getName() + " - " + e.getMessage();
+                e.printStackTrace();
+                writeResult(testName, "ERROR", expected, actual);
+            }
+        }
+    }
+
+    static void registerMissingFields() {
+        String testName = "registerMissingFields";
+        String expected = "User should remain on /register page when required fields are missing";
+        try {
+            driver.get("http://localhost:5173/register");
+            sleep(1500);
+            driver.findElement(By.name("email")).sendKeys("missinguser@example.com");
+            sleep(500);
+            driver.findElement(By.name("password")).sendKeys("password123");
+            sleep(500);
+            driver.findElement(By.cssSelector("button[type='submit']")).click();
+            sleep(1500);
+            boolean stillOnRegister = driver.getCurrentUrl().contains("/register");
+            String actual = "Current URL: " + driver.getCurrentUrl();
+            writeResult(testName, stillOnRegister ? "PASS" : "FAIL", expected, actual);
+        } catch (Exception e) {
+            String actual = "Exception: " + e.getClass().getName() + " - " + e.getMessage();
+            e.printStackTrace();
+            writeResult(testName, "ERROR", expected, actual);
+        }
+    }
+
+    static void registerDuplicateEmail() {
+        String testName = "registerDuplicateEmail";
+        String expected = "Error message should be displayed for duplicate email";
+        try {
+            driver.get("http://localhost:5173/register");
+            sleep(1500);
+            driver.findElement(By.name("username")).sendKeys("existinguser");
+            sleep(500);
+            driver.findElement(By.name("email")).sendKeys("user@example.com");
+            sleep(500);
+            driver.findElement(By.name("password")).sendKeys("password123");
+            sleep(500);
+            driver.findElement(By.cssSelector("button[type='submit']")).click();
+            sleep(2000);
+            boolean errorShown = driver.getPageSource().toLowerCase().contains("already") || driver.getPageSource().toLowerCase().contains("error");
+            String actual = errorShown ? "Error message displayed" : "No error message displayed";
+            writeResult(testName, errorShown ? "PASS" : "FAIL", expected, actual);
+        } catch (Exception e) {
+            String actual = "Exception: " + e.getClass().getName() + " - " + e.getMessage();
+            e.printStackTrace();
+            writeResult(testName, "ERROR", expected, actual);
+        }
+    }
+
+    static void loginSuccess() {
+        String testName = "loginSuccess";
+        String expected = "User should be redirected to /dashboard after login";
+        java.util.List<String[]> creds = readCredentials("/home/null/Documents/sqa_lab_project/credentials.csv");
+        for (String[] cred : creds) {
+            try {
+                String email = cred[0];
+                String password = cred[1];
+                driver.get("http://localhost:5173/login");
+                sleep(1500);
+                driver.findElement(By.name("email")).sendKeys(email);
+                sleep(500);
+                driver.findElement(By.name("password")).sendKeys(password);
+                sleep(500);
+                driver.findElement(By.xpath("//button[@type='submit']")).click();
+                sleep(2000);
+                boolean onDashboard = driver.getCurrentUrl().contains("/dashboard");
+                String actual = "Current URL: " + driver.getCurrentUrl();
+                writeResult(testName + "_" + email, onDashboard ? "PASS" : "FAIL", expected, actual);
+            } catch (Exception e) {
+                String actual = "Exception: " + e.getClass().getName() + " - " + e.getMessage();
+                e.printStackTrace();
+                writeResult(testName, "ERROR", expected, actual);
+            }
+        }
+    }
+
+    static void loginFailure() {
+        String testName = "loginFailure";
+        String expected = "Error message should be displayed for invalid login credentials";
+        try {
+            driver.get("http://localhost:5173/login");
+            sleep(1500);
+            driver.findElement(By.name("email")).sendKeys("wrong@example.com");
+            sleep(500);
+            driver.findElement(By.name("password")).sendKeys("wrongpass");
+            sleep(500);
+            driver.findElement(By.xpath("//button[@type='submit']")).click();
+            sleep(1500);
+            boolean errorShown = driver.getPageSource().toLowerCase().contains("login failed") ||
+                                 driver.getPageSource().toLowerCase().contains("invalid") ||
+                                 driver.getPageSource().toLowerCase().contains("error");
+            String actual = errorShown ? "Error message displayed" : "No error message displayed";
+            writeResult(testName, errorShown ? "PASS" : "FAIL", expected, actual);
+        } catch (Exception e) {
+            String actual = "Exception: " + e.getClass().getName() + " - " + e.getMessage();
+            e.printStackTrace();
+            writeResult(testName, "ERROR", expected, actual);
+        }
+    }
+
+    static void loginMissingFields() {
+        String testName = "loginMissingFields";
+        String expected = "User should remain on /login page when required fields are missing";
+        try {
+            driver.get("http://localhost:5173/login");
+            sleep(1500);
+            driver.findElement(By.name("email")).sendKeys("user@example.com");
+            sleep(500);
+            driver.findElement(By.xpath("//button[@type='submit']")).click();
+            sleep(1000);
+            boolean stillOnLogin = driver.getCurrentUrl().contains("/login");
+            String actual = "Current URL: " + driver.getCurrentUrl();
+            writeResult(testName, stillOnLogin ? "PASS" : "FAIL", expected, actual);
+        } catch (Exception e) {
+            String actual = "Exception: " + e.getClass().getName() + " - " + e.getMessage();
+            e.printStackTrace();
+            writeResult(testName, "ERROR", expected, actual);
+        }
+    }
+
+    static void dashboardSearchAndCartFlow() {
+        String testName = "dashboardSearchAndCartFlow";
+        String expected = "User should be able to search, add, and remove items from the cart";
+        try {
+            driver.get("http://localhost:5173/login");
+            sleep(1500);
+            driver.findElement(By.name("email")).sendKeys("user@example.com");
+            sleep(500);
+            driver.findElement(By.name("password")).sendKeys("password123");
+            sleep(500);
+            driver.findElement(By.xpath("//button[@type='submit']")).click();
+            sleep(2000);
+
+            driver.get("http://localhost:5173/dashboard");
+            sleep(1500);
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(5));
+            WebElement searchInput = wait.until(ExpectedConditions.visibilityOfElementLocated(By.name("search")));
+            searchInput.sendKeys("Plough");
+            sleep(500);
+            searchInput.sendKeys(Keys.RETURN);
+            sleep(2000);
+
+            try {
+                WebElement firstRentBtn = driver.findElements(By.xpath("//button[contains(translate(., 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'), 'RENT NOW')]")).get(0);
+                firstRentBtn.click();
+                sleep(1000);
+
+                WebElement removeBtn = driver.findElements(By.cssSelector("button.text-red-500")).get(0);
+                removeBtn.click();
+                sleep(1000);
+                String actual = "Search/Add/Remove Cart actions successful";
+                writeResult(testName, "PASS", expected, actual);
+            } catch (Exception e) {
+                String actual = "Exception: " + e.getClass().getName() + " - " + e.getMessage();
+                e.printStackTrace();
+                writeResult(testName, "FAIL", expected, actual);
+            }
+
+            adminAddAndEditProduct();
+        } catch (Exception e) {
+            String actual = "Exception: " + e.getClass().getName() + " - " + e.getMessage();
+            e.printStackTrace();
+            writeResult(testName, "ERROR", expected, actual);
+        }
+    }
+
+    static void adminAddAndEditProduct() {
+        String testName = "adminAddAndEditProduct";
+        String expected = "Admin should be able to add and edit products";
+        try {
+            driver.get("http://localhost:5173/login");
+            sleep(1500);
+            driver.findElement(By.name("email")).clear();
+            driver.findElement(By.name("email")).sendKeys("admin@gmail.com");
+            sleep(500);
+            driver.findElement(By.name("password")).clear();
+            driver.findElement(By.name("password")).sendKeys("asdf");
+            sleep(500);
+            driver.findElement(By.xpath("//button[@type='submit']")).click();
+            sleep(2000);
+
+            driver.get("http://localhost:5173/add-product");
+            sleep(1500);
+
+            String randomName = "selenium test " + System.currentTimeMillis();
+            String randomPrice = String.valueOf((int)(Math.random() * 1000) + 100);
+
+            WebElement nameInput = driver.findElement(By.xpath("//label[text()='Name']/following-sibling::div//input"));
+            nameInput.sendKeys(randomName);
+            sleep(500);
+
+            WebElement priceInput = driver.findElement(By.xpath("//label[text()='Daily Price']/following-sibling::div//input"));
+            priceInput.sendKeys(randomPrice);
+            sleep(500);
+
+            WebElement descInput = driver.findElement(By.xpath("//label[text()='Description']/following-sibling::div//input | //label[text()='Description']/following-sibling::div//textarea"));
+            descInput.sendKeys("selenium automated test update");
+            sleep(500);
+
+            WebElement uploadBtn = driver.findElement(By.xpath("//input[@type='file']"));
+            uploadBtn.sendKeys("/home/null/Music/trac.jpeg");
+            sleep(2000);
+
+            WebElement submitBtn = driver.findElement(By.cssSelector("button[type='submit']"));
+            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", submitBtn);
+            sleep(500);
+            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", submitBtn);
+            sleep(3000);
+
+            driver.get("http://localhost:5173/dashboard");
+            sleep(2000);
+
+            try {
+                WebElement editBtn = driver.findElements(By.xpath("//button[contains(.,'Edit')]")).get(0);
+                editBtn.click();
+                sleep(1500);
+
+                String now = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
+                String newName = "Edited " + now;
+                String newPrice = String.valueOf((int)(Math.random() * 1000) + 100);
+                String newDesc = "Edited by Selenium at " + now;
+
+                // Name field
+                WebElement nameEditInput = driver.findElement(By.xpath("//input[@name='name' or @label='Name' or @aria-label='Name'] | //label[text()='Name']/following-sibling::div//input"));
+                nameEditInput.clear();
+                nameEditInput.sendKeys(newName);
+                sleep(500);
+
+                // Price field (robust clear before entering new price)
+                WebElement priceEditInput = driver.findElement(By.xpath("//input[@name='price' or @label='Price' or @aria-label='Price'] | //label[text()='Price']/following-sibling::div//input"));
+                priceEditInput.click();
+                priceEditInput.sendKeys(Keys.chord(Keys.CONTROL, "a"), Keys.DELETE); // Select all and delete
+                priceEditInput.clear(); // Also call clear for good measure
+                priceEditInput.sendKeys(newPrice);
+                sleep(500);
+
+                // Description field
+                WebElement descEditInput = driver.findElement(By.xpath("//textarea[@name='description' or @label='Description' or @aria-label='Description'] | //label[text()='Description']/following-sibling::div//textarea"));
+                descEditInput.clear();
+                descEditInput.sendKeys(newDesc);
+                sleep(500);
+
+                WebElement updateBtn = driver.findElement(By.cssSelector("button[type='submit']"));
+                ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", updateBtn);
+                sleep(500);
+                ((JavascriptExecutor) driver).executeScript("arguments[0].click();", updateBtn);
+                sleep(2000);
+
+                String actual = "Admin Add/Edit Product actions successful";
+                writeResult(testName, "PASS", expected, actual);
+            } catch (Exception e) {
+                String actual = "Exception: " + e.getClass().getName() + " - " + e.getMessage();
+                e.printStackTrace();
+                writeResult(testName, "FAIL", expected, actual);
+            }
+        } catch (Exception e) {
+            String actual = "Exception: " + e.getClass().getName() + " - " + e.getMessage();
+            e.printStackTrace();
+            writeResult(testName, "ERROR", expected, actual);
+        }
+    }
+
+    static void sleep(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException e) {}
+    }
+}
