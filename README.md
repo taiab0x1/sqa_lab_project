@@ -94,4 +94,4 @@ This project is for educational purposes.
 
 ---
 
-**Developed by your team.**
+**Developed by Taiab & Sadif.**
